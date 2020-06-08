@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.stream.Stream;
 
-public class IntersectSubscription<T> implements IntersectParent<T> {
+class IntersectSubscription<T> implements IntersectParent<T> {
 
     public final Disposable.Composite cancellations;
 

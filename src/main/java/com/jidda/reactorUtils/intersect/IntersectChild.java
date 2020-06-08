@@ -10,7 +10,7 @@ import reactor.util.context.Context;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-public class IntersectChild<T> implements InnerConsumer<T>, Disposable {
+class IntersectChild<T> implements InnerConsumer<T>, Disposable {
 
     final IntersectParent<T> parent;
 
