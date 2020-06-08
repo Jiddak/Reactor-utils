@@ -86,8 +86,32 @@ public class IntersectFluxTest {
                 })
                 .expectComplete()
                 .verify();
+    }
 
+    @Test
+    public void IntersectHotPublishers2(){
+        DirectProcessor<String> d1 = DirectProcessor.create();
+        DirectProcessor<String> d2 = DirectProcessor.create();
 
+        StepVerifier.create(ReactorUtils.intersect(d1,d2))
+                .expectSubscription()
+                .then(() -> {
+                    d1.onNext("A");
+                    d2.onNext("B");
+                    d1.onNext("C");
+                    d1.onNext("B");
+                })
+                .expectNext("B")
+                //Finish one publisher early
+                //Then still push data on the other
+                .then(() ->{
+                    d1.onComplete();
+                    d2.onNext("C");
+                })
+                .expectNext("C")
+                .then(d2::onComplete)
+                .expectComplete()
+                .verify();
     }
 
 
