@@ -8,13 +8,16 @@ Intersects a flux and one other publisher. All distinct identical elements are e
 ```Java
 import com.jidda.reactorUtils;
 
-   Flux<String> f1 = Flux.just("A","B","C");
-   Flux<String> f2 = Flux.just("D","C","A");
-   ReactorUtils.intersect(f1,f2).subscribe() //Emits C,A
+	Flux<String> f1 = Flux.just("A","B","C");
+	Flux<String> f2 = Flux.just("D","C","A");
+	Flux<String> f3 = Flux.just("F","B","D");
+	ReactorUtils.intersect(f1,f2).subscribe() //Emits C,A
    
-   //Can also be used with prefetch value, default is Unbounded
-   ReactorUtils.intersect(f1,f2,32).subscribe() //Emits C,A
-   
+	//Can also be used with prefetch value, default is Unbounded
+	ReactorUtils.intersect(f1,f2,32).subscribe() //Emits C,A
+
+	//Can also be used with list of publishers
+	ReactorUtils.intersect(Arrays.asList(f1,f2,f3)).subscribe() //Emits C,A,B,D
 ```
 
 ## Contributing
