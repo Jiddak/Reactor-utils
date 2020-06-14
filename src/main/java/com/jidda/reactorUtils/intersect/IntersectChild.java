@@ -8,11 +8,16 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 class IntersectChild<T> implements InnerConsumer<T>, Disposable {
 
     final IntersectParent<T> parent;
+
+    final Set<T> previous;
 
     final int id;
 
@@ -30,6 +35,11 @@ class IntersectChild<T> implements InnerConsumer<T>, Disposable {
         this.parent = parent;
         this.id = id;
         this.prefetch = prefetch;
+        this.previous = new LinkedHashSet<>();
+    }
+
+    public Set<T> getPrevious() {
+        return previous;
     }
 
     @Override

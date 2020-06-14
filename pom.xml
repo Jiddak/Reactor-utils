@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.jidda</groupId>
     <artifactId>reactor-utils</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2</version>
     <name>reactor-utils</name>
     <description>Extra utilities not included in reactor-core or reactor-extra</description>
 
@@ -12,8 +12,6 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
     </properties>
-
-
 
     <dependencies>
         <dependency>
