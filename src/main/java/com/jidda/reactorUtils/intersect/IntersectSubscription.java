@@ -205,25 +205,4 @@ class IntersectSubscription<T> implements IntersectParent<T> {
             subscribingChild.getPrevious().add(value);
     }
 
-/*    private void process(T value,Subscriber<? super T> subscriber){
-        if(! intersects.contains(value) && rightSubscriber.getPrevious().contains(value)){
-            rightSubscriber.getPrevious().remove(value);
-            intersects.add(value);
-            subscriber.onNext(value);
-        }
-        else
-            leftSubscriber.getPrevious().add(value);
-    }
-
-    public void processRight(T value,Subscriber<? super T> subscriber){
-        if(! intersects.contains(value) && leftSubscriber.getPrevious().contains(value)){
-            leftSubscriber.getPrevious().remove(value);
-            intersects.add(value);
-            subscriber.onNext(value);
-        }
-        else
-            leftSubscriber.getPrevious().add(value);
-
-    }*/
-
 }
