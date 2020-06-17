@@ -10,7 +10,7 @@ import reactor.test.StepVerifier;
 import java.util.Arrays;
 import java.util.List;
 
-public class IntersectFluxTest {
+public class IntersectTest {
 
 
     @Test
