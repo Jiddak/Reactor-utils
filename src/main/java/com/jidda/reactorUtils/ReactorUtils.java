@@ -1,12 +1,17 @@
 package com.jidda.reactorUtils;
 
 import com.jidda.reactorUtils.intersect.IntersectFlux;
+import com.jidda.reactorUtils.join.ConditionalJoinFlux;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 
 public class ReactorUtils {
 
@@ -39,6 +44,24 @@ public class ReactorUtils {
             List<? extends Publisher<? extends T>> publishers
     ) {
         return UtilityFlux.onAssembly(new IntersectFlux<>(publishers,Long.MAX_VALUE));
+    }
+
+
+    public static final <TLeft,TRight, TLeftEnd, TRightEnd, R> Flux<R> joinIf(
+            Publisher<TLeft> leftSource,
+            Publisher<? extends TRight> rightSource,
+            BiFunction<? super TLeft, ? super TRight, ? extends R> resultSelector,
+            BiPredicate<TLeft,TRight> condition
+    ) {
+        return UtilityFlux.onAssembly(
+                new ConditionalJoinFlux<>(leftSource,
+                        rightSource,
+                        s -> Mono.empty(),
+                        s -> Mono.empty(),
+                        resultSelector,
+                        condition,
+                        Long.MAX_VALUE
+                ));
     }
 
 
