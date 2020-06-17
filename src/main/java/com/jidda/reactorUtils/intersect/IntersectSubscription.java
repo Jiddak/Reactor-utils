@@ -1,13 +1,12 @@
 package com.jidda.reactorUtils.intersect;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import reactor.core.*;
 import reactor.core.publisher.Operators;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
-import java.util.LinkedHashSet;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -20,17 +19,13 @@ class IntersectSubscription<T> implements IntersectParent<T> {
 
     final Queue<Tuple2<Integer,T>> queue;
 
-    final Set<T> lefts;
-
-    final Set<T> rights;
-
     final Set<T> intersects;
 
-    final IntersectChild<T> leftSubscriber;
-
-    final IntersectChild<T> rightSubscriber;
+    final List<IntersectChild<T>> subscribers;
 
     final CoreSubscriber<? super T> actual;
+
+    final List<? extends Publisher<? extends T>> sources;
 
     volatile int wip;
 
@@ -56,26 +51,28 @@ class IntersectSubscription<T> implements IntersectParent<T> {
                     Throwable.class,
                     "error");
 
-    public IntersectSubscription(CoreSubscriber<? super T> actual,long prefetch) {
+    public IntersectSubscription(CoreSubscriber<? super T> actual,List<? extends Publisher<? extends T>> sources) {
         this.actual = actual;
         this.cancellations = Disposables.composite();
         this.queue = new ConcurrentLinkedQueue<>();
-        this.lefts = new LinkedHashSet<>();
-        this.rights = new LinkedHashSet<>();
         this.intersects = new LinkedHashSet<>();
-        ACTIVE.lazySet(this, 2);
-        leftSubscriber = new IntersectChild<>(this, 0,prefetch);
-        cancellations.add(leftSubscriber);
-        rightSubscriber = new IntersectChild<>(this, 1,prefetch);
-        cancellations.add(rightSubscriber);
+        this.subscribers = Collections.synchronizedList(new ArrayList<>());
+        this.sources = sources;
+        ACTIVE.lazySet(this,sources.size());
     }
 
-    public IntersectChild<T> getRightSubscriber() {
-        return rightSubscriber;
+    public void subscribeToChildren(long prefetch){
+        for(Publisher<? extends T> source : sources){
+            source.subscribe(getNewSubscriber(prefetch));
+        }
     }
 
-    public IntersectChild<T> getLeftSubscriber(){
-        return leftSubscriber;
+    private IntersectChild<T> getNewSubscriber(long prefetch) {
+        int id = subscribers.size();
+        IntersectChild<T> subscriber = new IntersectChild<>(this, id,prefetch);
+        cancellations.add(subscriber);
+        subscribers.add(subscriber);
+        return subscriber;
     }
 
     @Override
@@ -109,8 +106,7 @@ class IntersectSubscription<T> implements IntersectParent<T> {
     void errorAll(Subscriber<?> subscriber) {
         Throwable ex = Exceptions.terminate(ERROR, this);
 
-        lefts.clear();
-        rights.clear();
+        subscribers.forEach(sub -> sub.getPrevious().clear());
 
         subscriber.onError(ex);
     }
@@ -171,8 +167,7 @@ class IntersectSubscription<T> implements IntersectParent<T> {
 
                 if (isActive && empty) {
 
-                    lefts.clear();
-                    rights.clear();
+                    subscribers.forEach(sub -> sub.getPrevious().clear());
                     cancellations.dispose();
 
                     subscriber.onComplete();
@@ -183,35 +178,31 @@ class IntersectSubscription<T> implements IntersectParent<T> {
                     break;
                 }
 
-                if (mode.getT1().equals(0)) {
-                    processLeft(mode.getT2(), subscriber);
-                } else if (mode.getT1().equals(1)) {
-                    processRight(mode.getT2(), subscriber);
-                }
+                process(mode,subscriber);
             }
             missed = WIP.addAndGet(this, -missed);
         } while (missed != 0);
     }
 
-    private void processLeft(T value,Subscriber<? super T> subscriber){
-        if(! intersects.contains(value) && rights.contains(value)){
-            rights.remove(value);
-            intersects.add(value);
-            subscriber.onNext(value);
-        }
-        else
-            lefts.add(value);
-    }
+    private void process(Tuple2<Integer, T> mode, Subscriber<? super T> subscriber){
+        T value = mode.getT2();
+        Integer subscriberId = mode.getT1();
+        IntersectChild<T> subscribingChild = subscribers.get(subscriberId);
 
-    public void processRight(T value,Subscriber<? super T> subscriber){
-        if(! intersects.contains(value) && lefts.contains(value)){
-            lefts.remove(value);
-            intersects.add(value);
-            subscriber.onNext(value);
+        if(! intersects.contains(value)){
+            for(IntersectChild<T> child : subscribers) {
+                if(child.equals(subscribingChild))
+                    continue;
+                if(child.getPrevious().contains(value)) {
+                    subscribingChild.getPrevious().remove(value);
+                    intersects.add(value);
+                }
+            }
         }
+        if(intersects.contains(value))
+            subscriber.onNext(value);
         else
-            rights.add(value);
-
+            subscribingChild.getPrevious().add(value);
     }
 
 }

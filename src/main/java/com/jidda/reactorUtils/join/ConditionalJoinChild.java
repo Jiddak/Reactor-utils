@@ -1,4 +1,4 @@
-package com.jidda.reactorUtils.intersect;
+package com.jidda.reactorUtils.join;
 
 import com.jidda.reactorUtils.InnerConsumer;
 import org.reactivestreams.Subscription;
@@ -8,37 +8,38 @@ import reactor.core.publisher.Operators;
 import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-class IntersectChild<T> implements InnerConsumer<T>, Disposable {
+class ConditionalJoinChild<T,R> implements InnerConsumer<T>, Disposable {
 
-    final IntersectParent<T> parent;
+    final private ConditionalJoinParent<R> parent;
 
-    final Set<T> previous;
+    final private List<T> previous;
 
-    final int id;
+    final private int nextId;
 
-    final long prefetch;
+    final private int closeId;
+
+    final private long prefetch;
 
     volatile Subscription subscription;
 
-    final static AtomicReferenceFieldUpdater<IntersectChild, Subscription>
+    final static AtomicReferenceFieldUpdater<ConditionalJoinChild, Subscription>
             SUBSCRIPTION =
-            AtomicReferenceFieldUpdater.newUpdater(IntersectChild.class,
+            AtomicReferenceFieldUpdater.newUpdater(ConditionalJoinChild.class,
                     Subscription.class,
                     "subscription");
 
-    public IntersectChild(IntersectParent<T> parent, int id, long prefetch) {
+    public ConditionalJoinChild(ConditionalJoinParent<R> parent, int nextId, int closeId, long prefetch) {
         this.parent = parent;
-        this.id = id;
+        this.nextId = nextId;
+        this.closeId = closeId;
         this.prefetch = prefetch;
-        this.previous = new LinkedHashSet<>();
+        this.previous = new  LinkedList<>();
     }
 
-    public Set<T> getPrevious() {
+    public List<T> getPrevious() {
         return previous;
     }
 
@@ -52,15 +53,6 @@ class IntersectChild<T> implements InnerConsumer<T>, Disposable {
         return parent.actual().currentContext();
     }
 
-    @Override
-    @Nullable
-    public Object scanUnsafe(Scannable.Attr key) {
-        if (key == Scannable.Attr.PARENT) return subscription;
-        if (key == Scannable.Attr.ACTUAL ) return parent;
-        if (key == Scannable.Attr.CANCELLED) return isDisposed();
-
-        return null;
-    }
 
     @Override
     public boolean isDisposed() {
@@ -75,9 +67,19 @@ class IntersectChild<T> implements InnerConsumer<T>, Disposable {
     }
 
     @Override
-    public void onNext(T t) {
-        parent.innerValue(id, t);
+    public void onNext(Object t) {
+        parent.innerValue(nextId, t);
         subscription.request(1);
+    }
+
+    @Override
+    @Nullable
+    public Object scanUnsafe(Scannable.Attr key) {
+        if (key == Scannable.Attr.PARENT) return subscription;
+        if (key == Scannable.Attr.ACTUAL ) return parent;
+        if (key == Scannable.Attr.CANCELLED) return isDisposed();
+
+        return null;
     }
 
     @Override
