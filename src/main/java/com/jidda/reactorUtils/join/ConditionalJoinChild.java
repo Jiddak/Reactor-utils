@@ -9,19 +9,22 @@ import reactor.util.annotation.Nullable;
 import reactor.util.context.Context;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 class ConditionalJoinChild<T,R> implements InnerConsumer<T>, Disposable {
 
     final private ConditionalJoinParent<R> parent;
 
-    final private List<T> previous;
+    final private Queue<T> previous;
 
     final private int nextId;
 
     final private int closeId;
 
     final private long prefetch;
+
+    private final long cacheSize;
 
     volatile Subscription subscription;
 
@@ -31,16 +34,29 @@ class ConditionalJoinChild<T,R> implements InnerConsumer<T>, Disposable {
                     Subscription.class,
                     "subscription");
 
-    public ConditionalJoinChild(ConditionalJoinParent<R> parent, int nextId, int closeId, long prefetch) {
+    public ConditionalJoinChild(ConditionalJoinParent<R> parent, int nextId, int closeId, long prefetch,long cacheSize) {
         this.parent = parent;
         this.nextId = nextId;
         this.closeId = closeId;
         this.prefetch = prefetch;
-        this.previous = new  LinkedList<>();
+        this.previous = new ConcurrentLinkedQueue<>();
+        this.cacheSize = cacheSize;
     }
 
-    public List<T> getPrevious() {
-        return previous;
+    public void insertPrevious(T t) {
+        if(cacheSize > 0)
+            while (previous.size() > cacheSize -1){
+                previous.poll();
+            }
+        previous.offer(t);
+    }
+
+    public void clearPrevious() {
+        previous.clear();
+    }
+
+    public Iterator<T> getPreviousSnapshot() {
+        return previous.iterator();
     }
 
     @Override
@@ -67,7 +83,7 @@ class ConditionalJoinChild<T,R> implements InnerConsumer<T>, Disposable {
     }
 
     @Override
-    public void onNext(Object t) {
+    public void onNext(T t) {
         parent.innerValue(nextId, t);
         subscription.request(1);
     }
