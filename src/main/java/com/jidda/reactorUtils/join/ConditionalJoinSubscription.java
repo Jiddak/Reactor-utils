@@ -6,8 +6,8 @@ import reactor.core.*;
 import reactor.core.publisher.Operators;
 import reactor.util.concurrent.Queues;
 
+import java.util.Iterator;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
@@ -72,7 +72,8 @@ class ConditionalJoinSubscription<TLeft, TRight, TLeftEnd, TRightEnd, R> impleme
                                        Function<? super TRight, ? extends Publisher<TRightEnd>> rightEnd,
                                        BiFunction<? super TLeft, ? super TRight, ? extends R> resultSelector,
                                        BiPredicate<TLeft, TRight> condition,
-                                       Long prefetch) {
+                                       Long prefetch,
+                                       Long cacheSize) {
         this.actual = actual;
         this.cancellations = Disposables.composite();
         this.queue = Queues.unboundedMultiproducer().get();
@@ -80,9 +81,9 @@ class ConditionalJoinSubscription<TLeft, TRight, TLeftEnd, TRightEnd, R> impleme
         this.resultSelector = resultSelector;
         this.condition = condition;
         ACTIVE.lazySet(this, 2);
-        leftSubscriber = new ConditionalJoinChild<>(this, LEFT_VALUE, LEFT_CLOSE, prefetch);
+        leftSubscriber = new ConditionalJoinChild<>(this, LEFT_VALUE, LEFT_CLOSE, prefetch,cacheSize);
         cancellations.add(leftSubscriber);
-        rightSubscriber = new ConditionalJoinChild<>(this, RIGHT_VALUE, RIGHT_CLOSE, prefetch);
+        rightSubscriber = new ConditionalJoinChild<>(this, RIGHT_VALUE, RIGHT_CLOSE, prefetch,cacheSize);
         cancellations.add(rightSubscriber);
     }
 
@@ -125,8 +126,8 @@ class ConditionalJoinSubscription<TLeft, TRight, TLeftEnd, TRightEnd, R> impleme
     void errorAll(Subscriber<?> subscriber) {
         Throwable ex = Exceptions.terminate(ERROR, this);
 
-        leftSubscriber.getPrevious().clear();
-        rightSubscriber.getPrevious().clear();
+        leftSubscriber.clearPrevious();
+        rightSubscriber.clearPrevious();
 
         subscriber.onError(ex);
     }
@@ -187,8 +188,8 @@ class ConditionalJoinSubscription<TLeft, TRight, TLeftEnd, TRightEnd, R> impleme
 
                 if (isActive && empty) {
 
-                    leftSubscriber.getPrevious().clear();
-                    rightSubscriber.getPrevious().clear();
+                    leftSubscriber.clearPrevious();
+                    rightSubscriber.clearPrevious();
                     cancellations.dispose();
 
                     subscriber.onComplete();
@@ -226,15 +227,17 @@ class ConditionalJoinSubscription<TLeft, TRight, TLeftEnd, TRightEnd, R> impleme
     }
 
     private void processLeft(TLeft value, Subscriber<? super R> subscriber) {
-        leftSubscriber.getPrevious().add(value);
-        for (TRight rightValue : rightSubscriber.getPrevious()) {
+        leftSubscriber.insertPrevious(value);
+        for (Iterator<TRight> it = rightSubscriber.getPreviousSnapshot(); it.hasNext(); ) {
+            TRight rightValue = it.next();
             filterAndSelectResult(value, rightValue, value, subscriber);
         }
     }
 
     private void processRight(TRight value, Subscriber<? super R> subscriber) {
-        rightSubscriber.getPrevious().add(value);
-        for (TLeft leftValue : leftSubscriber.getPrevious()) {
+        rightSubscriber.insertPrevious(value);
+        for (Iterator<TLeft> it = leftSubscriber.getPreviousSnapshot(); it.hasNext(); ) {
+            TLeft leftValue = it.next();
             filterAndSelectResult(leftValue,value,value,subscriber);
         }
     }

@@ -234,5 +234,35 @@ public class JoinIfTest {
                 .verify();
     }
 
+    @Test
+    public void cacheSizeTest(){
+        DirectProcessor<String> d1 = DirectProcessor.create();
+        DirectProcessor<String> d2 = DirectProcessor.create();
+
+        StepVerifier.create(
+                ReactorUtils.joinIf(
+                        d1,d2,
+                        String::concat,
+                        String::equals,
+                        2
+                ))
+                .expectSubscription()
+                .then(() -> {
+                    d1.onNext("C");
+                    d2.onNext("B");
+                    d1.onNext("A");
+                    d1.onNext("B");
+                })
+                .expectNext("BB")
+                //No output as d1 contains only A,B now
+                .then(() -> d2.onNext("C"))
+                .then(() -> {
+                    d1.onComplete();
+                    d2.onComplete();
+                })
+                .expectComplete()
+                .verify();
+    }
+
 
 }
